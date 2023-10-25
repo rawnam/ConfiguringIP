@@ -1,77 +1,69 @@
-// sdk.cpp : ¶¨Òå¾²Ì¬¿âµÄº¯Êý¡£
+// sdk.cpp : ï¿½ï¿½ï¿½å¾²Ì¬ï¿½ï¿½Äºï¿½ï¿½ï¿½ï¿½ï¿½
 //
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
 #include "pch.h"
 #include "framework.h"
 #include "configuring_network.h"
 #include "../firmware/easylogging++.h"
 
+
 INITIALIZE_EASYLOGGINGPP
 
-// TODO: ÕâÊÇÒ»¸ö¿âº¯ÊýÊ¾Àý
+// TODO: ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½âº¯ï¿½ï¿½Ê¾ï¿½ï¿½
 /*******************************************************************************************/
 
 bool BIND_FLAG_ = false;
 const int MAX_BUF_LEN = 255;
-// ´´½¨socket
-SOCKET connect_socket;
-// ÓÃÀ´´ÓÍøÂçÉÏµÄ¹ã²¥µØÖ·½ÓÊÕÊý¾Ý
-SOCKADDR_IN sin_from;
+// ï¿½ï¿½ï¿½ï¿½socket
+int connect_socket;
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÏµÄ¹ã²¥ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+struct sockaddr_in sin_from;
 
 int send_server_data(const char* buff)
 {
-	WORD wVersionRequested;
-	WSADATA wsaData;
-	int err;
+    // Create a socket
+    int connect_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (-1 == connect_socket)
+    {
+        std::cerr << "socket error: " << strerror(errno) << std::endl;
+        return -1;
+    }
 
-	// Æô¶¯socket api
-	wVersionRequested = MAKEWORD(2, 2);
-	err = WSAStartup(wVersionRequested, &wsaData);
-	if (err != 0)
-	{
-		return -1;
-	}
+    struct sockaddr_in sin;
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(SERVER_PORT);
+    sin.sin_addr.s_addr = INADDR_BROADCAST;
 
-	if (LOBYTE(wsaData.wVersion) != 2 ||
-		HIBYTE(wsaData.wVersion) != 2)
-	{
-		WSACleanup();
-		return -1;
-	}
+    int bOpt = 1;
+    // Set the socket to broadcast mode
+    if (setsockopt(connect_socket, SOL_SOCKET, SO_BROADCAST, &bOpt, sizeof(bOpt)) == -1)
+    {
+        std::cerr << "setsockopt error: " << strerror(errno) << std::endl;
+        close(connect_socket);
+        return -1;
+    }
 
-	// ´´½¨socket
-	SOCKET connect_socket;
-	connect_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (INVALID_SOCKET == connect_socket)
-	{
-		err = WSAGetLastError();
-		//printf("/"socket / " error! error code is %d/n", err);
-		std::cout << "socket error: error code is " << err;
-		return -1;
-	}
+    socklen_t nAddrLen = sizeof(sin);
 
-	SOCKADDR_IN sin;
-	sin.sin_family = AF_INET;
-	sin.sin_port = htons(SERVER_PORT);
-	sin.sin_addr.s_addr = INADDR_BROADCAST;
+    // Send the data
+    ssize_t nSendSize = sendto(connect_socket, buff, strlen(buff), 0, (struct sockaddr*)&sin, nAddrLen);
+    if (-1 == nSendSize)
+    {
+        std::cerr << "sendto error: " << strerror(errno) << std::endl;
+        close(connect_socket);
+        return -1;
+    }
 
-	bool bOpt = true;
-	//ÉèÖÃ¸ÃÌ×½Ó×ÖÎª¹ã²¥ÀàÐÍ
-	setsockopt(connect_socket, SOL_SOCKET, SO_BROADCAST, (char*)&bOpt, sizeof(bOpt));
-
-	int nAddrLen = sizeof(SOCKADDR);
-
-	// ·¢ËÍÊý¾Ý
-	int nSendSize = sendto(connect_socket, buff, strlen(buff), 0, (SOCKADDR*)&sin, nAddrLen);
-	if (SOCKET_ERROR == nSendSize)
-	{
-		err = WSAGetLastError();
-		//printf("/"sendto / " error!, error code is %d/n", err);
-		std::cout << "sendto error: error code is " << err;
-		return -1;
-	}
-
-	return 0;
+    close(connect_socket);
+    return 0;
 }
+
 /*
 int send_param(const char* buff)
 {
@@ -79,7 +71,7 @@ int send_param(const char* buff)
 	WSADATA wsaData;
 	int err;
 
-	// Æô¶¯socket api
+	// ï¿½ï¿½ï¿½ï¿½socket api
 	wVersionRequested = MAKEWORD(2, 2);
 	err = WSAStartup(wVersionRequested, &wsaData);
 	if (err != 0)
@@ -94,23 +86,23 @@ int send_param(const char* buff)
 		return -1;
 	}
 
-	// ´´½¨socket
-	SOCKET connect_socket;
+	// ï¿½ï¿½ï¿½ï¿½socket
+	int connect_socket;
 	connect_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (INVALID_SOCKET == connect_socket)
+	if (-1 == connect_socket)
 	{
 		err = WSAGetLastError();
 		std::cout << "socket error: error code is " << err;
 		return -1;
 	}
 
-	SOCKADDR_IN sin;
+	struct sockaddr_in sin;
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons(SERVER_PORT);
 	sin.sin_addr.s_addr = INADDR_BROADCAST;
 
 	bool bOpt = true;
-	//ÉèÖÃ¸ÃÌ×½Ó×ÖÎª¹ã²¥ÀàÐÍ
+	//ï¿½ï¿½ï¿½Ã¸ï¿½ï¿½×½ï¿½ï¿½ï¿½Îªï¿½ã²¥ï¿½ï¿½ï¿½ï¿½
 	setsockopt(connect_socket, SOL_SOCKET, SO_BROADCAST, (char*)&bOpt, sizeof(bOpt));
 
 	int nAddrLen = sizeof(SOCKADDR);
@@ -122,9 +114,9 @@ int send_param(const char* buff)
 		std::cout << "bind error" << std::endl;
 	}
 
-	// ·¢ËÍÊý¾Ý
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	int nSendSize = sendto(connect_socket, buff, strlen(buff), 0, (SOCKADDR*)&sin, nAddrLen);
-	if (SOCKET_ERROR == nSendSize)
+	if (-1 == nSendSize)
 	{
 		err = WSAGetLastError();
 		//printf("/"sendto / " error!, error code is %d/n", err);
@@ -138,140 +130,106 @@ int send_param(const char* buff)
 */
 int send_command(int command)
 {
-	WORD wVersionRequested;
-	WSADATA wsaData;
-	int err;
+    // Create a socket
+    int connect_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (-1 == connect_socket)
+    {
+        std::cerr << "socket error: " << strerror(errno) << std::endl;
+        return -1;
+    }
 
-	// Æô¶¯socket api
-	wVersionRequested = MAKEWORD(2, 2);
-	err = WSAStartup(wVersionRequested, &wsaData);
-	if (err != 0)
-	{
-		return -1;
-	}
+    struct sockaddr_in sin;
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(SERVER_PORT);
+    sin.sin_addr.s_addr = INADDR_BROADCAST;
 
-	if (LOBYTE(wsaData.wVersion) != 2 ||
-		HIBYTE(wsaData.wVersion) != 2)
-	{
-		WSACleanup();
-		return -1;
-	}
+    int bOpt = 1;
+    // Set the socket to broadcast mode
+    if (setsockopt(connect_socket, SOL_SOCKET, SO_BROADCAST, &bOpt, sizeof(bOpt)) == -1)
+    {
+        std::cerr << "setsockopt error: " << strerror(errno) << std::endl;
+        close(connect_socket);
+        return -1;
+    }
 
-	// ´´½¨socket
-	SOCKET connect_socket;
-	connect_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (INVALID_SOCKET == connect_socket)
-	{
-		err = WSAGetLastError();
-		LOG(INFO) << "socket error: error code is " << err;
-		return -1;
-	}
+    socklen_t nAddrLen = sizeof(sin);
 
-	SOCKADDR_IN sin;
-	sin.sin_family = AF_INET;
-	sin.sin_port = htons(SERVER_PORT);
-	sin.sin_addr.s_addr = INADDR_BROADCAST;
+    char buff[MAX_BUF_LEN] = "";
 
-	bool bOpt = true;
-	//ÉèÖÃ¸ÃÌ×½Ó×ÖÎª¹ã²¥ÀàÐÍ
-	setsockopt(connect_socket, SOL_SOCKET, SO_BROADCAST, (char*)&bOpt, sizeof(bOpt));
+    snprintf(buff, sizeof(buff), "%8d", command);
 
-	int nAddrLen = sizeof(SOCKADDR);
+    // Send the data
+    ssize_t nSendSize = sendto(connect_socket, buff, strlen(buff), 0, (struct sockaddr*)&sin, nAddrLen);
+    if (-1 == nSendSize)
+    {
+        std::cerr << "sendto error: " << strerror(errno) << std::endl;
+        close(connect_socket);
+        return -1;
+    }
 
-	char buff[MAX_BUF_LEN] = "";
-
-	sprintf(buff, "%8d", command);
-
-	// ·¢ËÍÊý¾Ý
-	int nSendSize = sendto(connect_socket, buff, strlen(buff), 0, (SOCKADDR*)&sin, nAddrLen);
-	if (SOCKET_ERROR == nSendSize)
-	{
-		err = WSAGetLastError();
-		LOG(INFO) << "sendto error: error code is " << err;
-		return -1;
-	}
-
-	return 0;
+    close(connect_socket);
+    return 0;
 }
+
 
 int set_recv_timeout(int nNetTimeout)
 {
-	setsockopt(connect_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&nNetTimeout, sizeof(int));
-	return 0;
+    struct timeval timeout;
+    timeout.tv_sec = nNetTimeout / 1000;
+    timeout.tv_usec = (nNetTimeout % 1000) * 1000;
+    setsockopt(connect_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    return 0;
 }
 
 int set_send_timeout(int nNetTimeout)
 {
-	setsockopt(connect_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&nNetTimeout, sizeof(int));
-	return 0;
+    struct timeval timeout;
+    timeout.tv_sec = nNetTimeout / 1000;
+    timeout.tv_usec = (nNetTimeout % 1000) * 1000;
+    setsockopt(connect_socket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+    return 0;
 }
 
 int bind_server_port(int nNetTimeout)
 {
-	if (BIND_FLAG_)
-	{
-		set_recv_timeout(nNetTimeout);
-		LOG(INFO) << "BIND_FLAG_: already true.";
-		return -1;
-	}
+    if (BIND_FLAG_)
+    {
+        set_recv_timeout(nNetTimeout);
+        std::cerr << "BIND_FLAG_: already true." << std::endl;
+        return -1;
+    }
 
-	WORD wVersionRequested;
-	WSADATA wsaData;
-	int err;
+    connect_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (-1 == connect_socket)
+    {
+        std::cerr << "socket error: " << strerror(errno) << std::endl;
+        return -1;
+    }
 
-	// Æô¶¯socket api
-	wVersionRequested = MAKEWORD(2, 2);
-	err = WSAStartup(wVersionRequested, &wsaData);
-	if (err != 0)
-	{
-		LOG(INFO) << "WSAStartup: error code is " << err;
-		return -1;
-	}
+    struct sockaddr_in sin;
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(CLIENT_PORT);
+    sin.sin_addr.s_addr = INADDR_ANY;
 
-	if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2)
-	{
-		WSACleanup();
-		LOG(INFO) << "wsaData.wVersion error: " << wsaData.wVersion;
-		return -1;
-	}
+    struct sockaddr_in sin_from;
+    sin_from.sin_family = AF_INET;
+    sin_from.sin_port = htons(CLIENT_PORT);
+    sin_from.sin_addr.s_addr = INADDR_BROADCAST;
 
-	connect_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (INVALID_SOCKET == connect_socket)
-	{
-		err = WSAGetLastError();
-		LOG(INFO) << "socket error: error code is " << err;
-		return -1;
-	}
+    int bOpt = 1;
+    setsockopt(connect_socket, SOL_SOCKET, SO_BROADCAST, &bOpt, sizeof(bOpt));
 
-	// ÓÃÀ´°ó¶¨Ì×½Ó×Ö
-	SOCKADDR_IN sin;
-	sin.sin_family = AF_INET;
-	sin.sin_port = htons(CLIENT_PORT);
-	sin.sin_addr.s_addr = 0;
+    set_recv_timeout(nNetTimeout);
 
-	sin_from.sin_family = AF_INET;
-	sin_from.sin_port = htons(CLIENT_PORT);
-	sin_from.sin_addr.s_addr = INADDR_BROADCAST;
+    if (bind(connect_socket, (struct sockaddr*)&sin, sizeof(sin)) == -1)
+    {
+        std::cerr << "bind error: " << strerror(errno) << std::endl;
+        return -1;
+    }
 
-	//ÉèÖÃ¸ÃÌ×½Ó×ÖÎª¹ã²¥ÀàÐÍ£¬
-	bool bOpt = true;
-	setsockopt(connect_socket, SOL_SOCKET, SO_BROADCAST, (char*)&bOpt, sizeof(bOpt));
-
-	//int nNetTimeout = 0.1 * 1000;//1Ãë£¬
-	setsockopt(connect_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&nNetTimeout, sizeof(int));
-
-	// °ó¶¨Ì×½Ó×Ö
-	err = bind(connect_socket, (SOCKADDR*)&sin, sizeof(SOCKADDR));
-	if (SOCKET_ERROR == err)
-	{
-		err = WSAGetLastError();
-		LOG(INFO) << "bind error: error code is " << err;
-		return -1;
-	}
-
-	BIND_FLAG_ = true;
-	
-	return 0;
+    BIND_FLAG_ = true;
+    
+    return 0;
 }
 /*
 int recv_server_command(int& command)
@@ -283,7 +241,7 @@ int recv_server_command(int& command)
 	int nLoop = 0;
 
 	int nSendSize = recvfrom(connect_socket, buff, MAX_BUF_LEN, 0, (SOCKADDR*)&sin_from, &nAddrLen);
-	if (SOCKET_ERROR == nSendSize)
+	if (-1 == nSendSize)
 	{
 		err = WSAGetLastError();
 
@@ -305,24 +263,19 @@ int recv_server_command(int& command)
 */
 int recv_server_data(char* buffer, int& buffer_size)
 {
-	int err;
+    socklen_t nAddrLen = sizeof(struct sockaddr_in);
 
-	int nAddrLen = sizeof(SOCKADDR);
-	int nLoop = 0;
+    int nRecvSize = recvfrom(connect_socket, buffer, MAX_BUF_LEN, 0, (struct sockaddr*)&sin_from, &nAddrLen);
+    if (-1 == nRecvSize)
+    {
+        std::cerr << "recvfrom error: " << strerror(errno) << std::endl;
+        return -1;
+    }
 
-	// ½ÓÊÕÊý¾Ý
-	int nSendSize = recvfrom(connect_socket, buffer, MAX_BUF_LEN, 0, (SOCKADDR*)&sin_from, &nAddrLen);
-	if (SOCKET_ERROR == nSendSize)
-	{
-		err = WSAGetLastError();
-//		LOG(INFO) << "recvfrom error: error code is " << err;
-		return -1;
-	}
+    buffer[nRecvSize] = '\0';
+    buffer_size = nRecvSize;
 
-	buffer[nSendSize] = '\0';
-	buffer_size = nSendSize;
-
-	return 0;
+    return 0;
 }
 
 std::vector<std::string> vStringSplit(const std::string& s, const std::string& delim)
@@ -347,181 +300,179 @@ std::vector<std::string> vStringSplit(const std::string& s, const std::string& d
 	return elems;
 }
 
-// -- Set ip address, sleep for network re-up, then get the new ip address.
 int SetCameraIp(std::string mac, std::string& ip)
 {
-	LOG(INFO) << "SET_IP......";
-	int ret = bind_server_port(0.3 * 1000);
-	if (0 != ret) {
-		LOG(INFO) << "SetCameraIp: bind error and continue";
-	}
+    LOG(INFO) << "SET_IP......";
+    int ret = bind_server_port(static_cast<int>(0.3 * 1000));
+    if (0 != ret) {
+        LOG(INFO) << "SetCameraIp: bind error and continue";
+    }
 
-	// set ip address
-	char command_c[MAX_BUF_LEN] = "";
-	sprintf(command_c, "%8d", DF_CMD_SET_NETWORK_IP);
-	std::string str_data = std::string(command_c) + ";" + std::string(mac) + ";" + std::string(ip);
-	char* message_buff = const_cast<char*>(str_data.c_str());
-	send_server_data(message_buff);
-	LOG(INFO) << "Set static ip complete, wait for network to be accessed.";
+    // set ip address
+    char command_c[MAX_BUF_LEN] = "";
+    sprintf(command_c, "%8d", DF_CMD_SET_NETWORK_IP);
+    std::string str_data = std::string(command_c) + ";" + mac + ";" + ip;
+    char* message_buff = const_cast<char*>(str_data.c_str());
+    send_server_data(message_buff);
+    LOG(INFO) << "Set static ip complete, wait for network to be accessed.";
 
-	// wait 5sec at least for camera network re-up
-	Sleep(5000);
+    // wait 5sec at least for camera network re-up
+    sleep(5);
 
-	// get the new ip address
-	memset(command_c, 0xff, MAX_BUF_LEN);
-	sprintf(command_c, "%8d", DF_CMD_GET_NETWORK_IP);
-	str_data = std::string(command_c) + ";" + std::string(mac) + ";" + std::string(ip);
-	message_buff = const_cast<char*>(str_data.c_str());
-	send_server_data(message_buff);
+    // get the new ip address
+    memset(command_c, 0xff, MAX_BUF_LEN);
+    sprintf(command_c, "%8d", DF_CMD_GET_NETWORK_IP);
+    str_data = std::string(command_c) + ";" + mac + ";" + ip;
+    message_buff = const_cast<char*>(str_data.c_str());
+    send_server_data(message_buff);
 
-	char recv_buff[MAX_BUF_LEN] = "";
-	int recv_buff_size = 0;
-	ret = recv_server_data(recv_buff, recv_buff_size);
-	if (0 != ret)
-	{
-		LOG(INFO) << "get new ip address error";
-		return -1;
-	}
+    char recv_buff[MAX_BUF_LEN] = "";
+    int recv_buff_size = 0;
+    ret = recv_server_data(recv_buff, recv_buff_size);
+    if (0 != ret)
+    {
+        LOG(INFO) << "get new ip address error";
+        return -1;
+    }
 
-	std::string rec_str = std::string(recv_buff);
-	std::vector<std::string> str_list = vStringSplit(rec_str, ";");
-	LOG(INFO) << "new ip address:" << str_list[0];
+    std::string rec_str = std::string(recv_buff);
+    std::vector<std::string> str_list = vStringSplit(rec_str, ";");
+    LOG(INFO) << "new ip address:" << str_list[0];
 
-	if (str_list.size() > 0) {
-		ip = str_list[0];
-	} else {
-		ip = "";
-	}
+    if (str_list.size() > 0) {
+        ip = str_list[0];
+    } else {
+        ip = "";
+    }
 
-	return 0;
+    return 0;
 }
 
-// -- Set the network to be dhcp mode, sleep for network re-up, then get the new ip address.
 int SetCameraIpAuto(std::string mac, std::string& ip)
 {
-	LOG(INFO) << "SET_AUTO......";
-	int ret = bind_server_port(0.3 * 1000);
-	if (0 != ret) {
-		LOG(INFO) << "SetCameraIpAuto: bind error and continue";
-	}
+    LOG(INFO) << "SET_AUTO......";
+    int ret = bind_server_port(static_cast<int>(0.3 * 1000));
+    if (0 != ret) {
+        LOG(INFO) << "SetCameraIpAuto: bind error and continue";
+    }
 
-	// set ip address be dhcp mode
-	char command_c[MAX_BUF_LEN] = "";
-	sprintf(command_c, "%8d", DF_CMD_SET_NETWORK_DHCP);
-	printf("mac: %s \n", mac.c_str());
-	std::string str_data = std::string(command_c) + ";" + std::string(mac);
-	char* message_buff = const_cast<char*>(str_data.c_str());
-	send_server_data(message_buff);
-	LOG(INFO) << "Set dhcp complete, wait for DHCP discover";
+    // set ip address be dhcp mode
+    char command_c[MAX_BUF_LEN] = "";
+    sprintf(command_c, "%8d", DF_CMD_SET_NETWORK_DHCP);
+    printf("mac: %s \n", mac.c_str());
+    std::string str_data = std::string(command_c) + ";" + mac;
+    char* message_buff = const_cast<char*>(str_data.c_str());
+    send_server_data(message_buff);
+    LOG(INFO) << "Set dhcp complete, wait for DHCP discover";
 
-	// wait 20sec at least for camera network re-up
-	Sleep(20000);
+    // wait 20sec at least for camera network re-up
+    sleep(20);
 
-	// get the new ip address
-	memset(command_c, 0xff, MAX_BUF_LEN);
-	sprintf(command_c, "%8d", DF_CMD_GET_NETWORK_IP);
-	str_data = std::string(command_c) + ";" + std::string(mac) + ";" + std::string(ip);
-	message_buff = const_cast<char*>(str_data.c_str());
-	send_server_data(message_buff);
+    // get the new ip address
+    memset(command_c, 0xff, MAX_BUF_LEN);
+    sprintf(command_c, "%8d", DF_CMD_GET_NETWORK_IP);
+    str_data = std::string(command_c) + ";" + mac;
+    message_buff = const_cast<char*>(str_data.c_str());
+    send_server_data(message_buff);
 
-	char recv_buff[MAX_BUF_LEN] = "";
-	int recv_buff_size = 0;
-	ret = recv_server_data(recv_buff, recv_buff_size);
-	if (0 != ret) 
-	{
-		LOG(INFO) << "get new ip address error";
-		return -1;
-	}
+    char recv_buff[MAX_BUF_LEN] = "";
+    int recv_buff_size = 0;
+    ret = recv_server_data(recv_buff, recv_buff_size);
+    if (0 != ret) 
+    {
+        LOG(INFO) << "get new ip address error";
+        return -1;
+    }
 
-	std::string rec_str = std::string(recv_buff);
-	std::vector<std::string> str_list = vStringSplit(rec_str, ";");
-	LOG(INFO) << "new ip address:" << str_list[0];
+    std::string rec_str = std::string(recv_buff);
+    std::vector<std::string> str_list = vStringSplit(rec_str, ";");
+    LOG(INFO) << "new ip address:" << str_list[0];
 
-	if (str_list.size() > 0) {
-		ip = str_list[0];
-	} else {
-		ip = "";
-	}
+    if (str_list.size() > 0) {
+        ip = str_list[0];
+    } else {
+        ip = "";
+    }
 
-	return 0;
+    return 0;
 }
 
-// -- Set ip address/netmask/gateway/DHCP, sleep for network re-up, then get the new setting.
-int SetCameraNetwork(long cmd, std::string mac, std::string &cfg, long sleep)
+
+int SetCameraNetwork(long cmd, std::string mac, std::string &cfg, long sleep_duration)
 {
-	LOG(INFO) << "Camera Network Setting";
-	int ret = bind_server_port(0.3 * 1000);
-	if (0 != ret) {
-		LOG(INFO) << "bind error and continue";
-	}
+    LOG(INFO) << "Camera Network Setting";
+    int ret = bind_server_port(static_cast<int>(0.3 * 1000));
+    if (0 != ret) {
+        LOG(INFO) << "bind error and continue";
+    }
 
-	// set command
-	char command_c[MAX_BUF_LEN] = "";
-	sprintf(command_c, "%8d", cmd);
-	std::string str_data = std::string(command_c) + ";" + std::string(mac) + ";" + std::string(cfg);
-	char* message_buff = const_cast<char*>(str_data.c_str());
-	send_server_data(message_buff);
+    // set command
+    char command_c[MAX_BUF_LEN] = "";
+    sprintf(command_c, "%8ld", cmd);  // Use %8ld for long
+    std::string str_data = std::string(command_c) + ";" + mac + ";" + cfg;
+    char* message_buff = const_cast<char*>(str_data.c_str());
+    send_server_data(message_buff);
 
-	// instruction list
-	long getCmd = DF_CMD_GET_NETWORK_IP;
-	switch (cmd)
-	{
-		case DF_CMD_SET_NETWORK_IP:
-			getCmd = DF_CMD_GET_NETWORK_IP;
-			LOG(INFO) << "Set static ip complete, wait for network to be accessed.";
-			break;
+    // instruction list
+    long getCmd = DF_CMD_GET_NETWORK_IP;
+    switch (cmd)
+    {
+        case DF_CMD_SET_NETWORK_IP:
+            getCmd = DF_CMD_GET_NETWORK_IP;
+            LOG(INFO) << "Set static ip complete, wait for network to be accessed.";
+            break;
 
-		case DF_CMD_SET_NETWORK_NETMASK:
-			getCmd = DF_CMD_GET_NETWORK_NETMASK;
-			LOG(INFO) << "Set netmask complete, wait for network to be accessed.";
-			break;
+        case DF_CMD_SET_NETWORK_NETMASK:
+            getCmd = DF_CMD_GET_NETWORK_NETMASK;
+            LOG(INFO) << "Set netmask complete, wait for network to be accessed.";
+            break;
 
-		case DF_CMD_SET_NETWORK_GATEWAY:
-			getCmd = DF_CMD_GET_NETWORK_GATEWAY;
-			LOG(INFO) << "Set gateway complete, wait for network to be accessed.";
-			break;
+        case DF_CMD_SET_NETWORK_GATEWAY:
+            getCmd = DF_CMD_GET_NETWORK_GATEWAY;
+            LOG(INFO) << "Set gateway complete, wait for network to be accessed.";
+            break;
 
-		case DF_CMD_SET_NETWORK_DHCP:
-			getCmd = DF_CMD_GET_NETWORK_IP;
-			LOG(INFO) << "Set DHCP complete, wait for DHCP discover";
-			break;
+        case DF_CMD_SET_NETWORK_DHCP:
+            getCmd = DF_CMD_GET_NETWORK_IP;
+            LOG(INFO) << "Set DHCP complete, wait for DHCP discover";
+            break;
 
-		default:
-			break;
-	}
+        default:
+            break;
+    }
 
-	// wait Xsec at least for camera network re-up
-	Sleep(sleep);
+    // wait Xsec at least for camera network re-up
+    sleep(sleep_duration);
 
-	// get the new setting
-	memset(command_c, 0xff, MAX_BUF_LEN);
-	sprintf(command_c, "%8d", getCmd);
-	str_data = std::string(command_c) + ";" + std::string(mac) + ";" + std::string(cfg);
-	message_buff = const_cast<char*>(str_data.c_str());
-	send_server_data(message_buff);
+    // get the new setting
+    memset(command_c, 0xff, MAX_BUF_LEN);
+    sprintf(command_c, "%8ld", getCmd);  // Use %8ld for long
+    str_data = std::string(command_c) + ";" + mac + ";" + cfg;
+    message_buff = const_cast<char*>(str_data.c_str());
+    send_server_data(message_buff);
 
-	char recv_buff[MAX_BUF_LEN] = "";
-	int recv_buff_size = 0;
-	ret = recv_server_data(recv_buff, recv_buff_size);
-	if (0 != ret)
-	{
-		LOG(INFO) << "get new setting error";
-		return -1;
-	}
+    char recv_buff[MAX_BUF_LEN] = "";
+    int recv_buff_size = 0;
+    ret = recv_server_data(recv_buff, recv_buff_size);
+    if (0 != ret)
+    {
+        LOG(INFO) << "get new setting error";
+        return -1;
+    }
 
-	// unpack the setting
-	std::string rec_str = std::string(recv_buff);
-	std::vector<std::string> str_list = vStringSplit(rec_str, ";");
-	LOG(INFO) << "new setting:" << str_list[0];
+    // unpack the setting
+    std::string rec_str = std::string(recv_buff);
+    std::vector<std::string> str_list = vStringSplit(rec_str, ";");
+    LOG(INFO) << "new setting:" << str_list[0];
 
-	if (str_list.size() > 0) {
-		cfg = str_list[0];
-	}
-	else {
-		cfg = "";
-	}
+    if (str_list.size() > 0) {
+        cfg = str_list[0];
+    }
+    else {
+        cfg = "";
+    }
 
-	return 0;
+    return 0;
 }
 
 int GetCameraList(std::vector<std::string>& mac_list, std::vector<std::string>& ip_list)

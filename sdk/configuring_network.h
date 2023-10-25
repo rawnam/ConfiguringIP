@@ -1,5 +1,12 @@
 #pragma once
-#include <WINSOCK2.H>
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#endif
 #include <iostream>
 #include <sstream> 
 #include "../configuring_ip/getopt.h" 
